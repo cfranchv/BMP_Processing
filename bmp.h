@@ -150,20 +150,52 @@ BMPImage* ReadImage(FILE* fp, const char** a_error) {
 }
 BMPImage* CropBMP(const BMPImage* image, const char** a_error, int x1, int x2, int y1, int y2) {
 
+
+	/* author: Charles Franchville
+	 * cfranchv@purdue.edu
+	 *
+	 * Purpose:
+	 * Cropping BMP Image
+	 *
+	 * Inputs:
+	 * image -> image that one wishes to crop
+	 * a_error-> string for error handling
+	 * x1 -> initial x margin
+	 * x2 -> final x margin
+	 * y1 -> initial y margin
+	 * y2 -> final y margin
+	 *
+	 */
+
 	BMPImage* Cropped = malloc(sizeof(BMPImage));
+
+	if(Cropped == NULL) {
+		*a_error = "Unable to reserve memory for cropped image.";
+		return NULL;
+	}
 	Cropped -> header = image -> header;
 	Cropped -> header.width_px = x2 - x1;
 	Cropped -> header.height_px = y2 - y1;
 	Cropped -> header.image_size_bytes = ((x2 - x1) * (y2 - y1) * 3);
 	Cropped -> header.size = Cropped -> header.image_size_bytes + BMP_HEADER_SIZE;
 
-
+	if(!CheckHead(&(Cropped -> header))) {
+		FreeBMP(Cropped);
+		*a_error = "Problem with image header";
+		return NULL;
+	}
 
 	int x = x1;
 	int y = y1;
 
 	int numpix = Cropped -> header.image_size_bytes / BPP;
 	Cropped -> pixelmap = malloc(sizeof(Pixel) * numpix);
+
+	if(Cropped -> pixelmap == NULL) {
+		a_error = "Cannot reserve memory for pixelmap.";
+		FreeBMP(Cropped);
+		return NULL;
+	}
 
 
 	for(int idx = 0; idx < numpix; idx++) {
@@ -172,7 +204,7 @@ BMPImage* CropBMP(const BMPImage* image, const char** a_error, int x1, int x2, i
 		Cropped -> pixelmap[idx] = _get_Pixel(x, y, image -> pixelmap, image -> header);
 		Cropped -> pixelmap[idx].x = x_new;
 		Cropped -> pixelmap[idx].y = y_new;
-		x++;								//O(n) time complexity!!!!
+		x++;
 		if(x == (x2)) {
 			y++;
 			x = x1;
