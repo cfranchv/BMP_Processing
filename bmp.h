@@ -77,7 +77,28 @@ Pixel  _get_Pixel(int x, int y, Pixel* pixelmap, BMPHeader header) {
 	int idx = (x + header.width_px * y);			//calculate the position of the pixel
 	return pixelmap[idx];
 }
+Pixel  _avg_Pixel(Pixel pix) {
+	Pixel ret = pix;
 
+	unsigned char avg = pix.r + pix.g + pix.b;
+	avg = avg / 3;
+
+	ret.r = avg;
+	ret.g = avg;
+	ret.b = avg;
+
+	return ret;
+}
+Pixel  _lum_Pixel(Pixel pix) {
+	Pixel ret = pix;
+
+	unsigned char lum = (unsigned char) (0.3 * pix.r + 0.59 * pix.g + 0.11 * pix.b);
+	ret.r = lum;
+	ret.g = lum;
+	ret.b = lum;
+
+	return ret;
+}
 unsigned char* _pixelmap_to_data(const BMPImage* image) {
 	long int size_data = image -> header.image_size_bytes;
 	unsigned char* data = malloc(sizeof(unsigned char) * size_data);
@@ -153,6 +174,7 @@ BMPImage* CropBMP(const BMPImage* image, const char** a_error, int x1, int x2, i
 
 	/* author: Charles Franchville
 	 * cfranchv@purdue.edu
+	 * cfranch477@gmail.com
 	 *
 	 * Purpose:
 	 * Cropping BMP Image
@@ -211,6 +233,55 @@ BMPImage* CropBMP(const BMPImage* image, const char** a_error, int x1, int x2, i
 		}
 	}
 	return Cropped;
+}
+BMPImage* GrayBMP  (const BMPImage* image, const char** a_error, char method) {
+	/*
+	 * Author: Charles Franchville
+	 * cfranchv@purdue.edu
+	 * cfranch477@gmail.com
+	 *
+	 * Inputs:
+	 *  image -> image to be edited
+	 *  a_error -> error message
+	 *  method -> which method to calculate the grayscale of the image
+	 *  			'a' for AVG method -> gives sharper definition
+	 *  			'l' for luminosity method -> gives more pleasant picture quality
+	 *
+	 */
+
+	BMPImage* Gray = malloc(sizeof(*Gray));
+
+	if(Gray == NULL) {
+		*a_error = "Unable to B/W current image";
+		return NULL;
+	}
+	Gray -> header = image -> header;
+	if(!CheckHead(&(Gray -> header))) {
+		*a_error = "Unable to read image header";
+		FreeBMP(Gray);
+		return NULL;
+	}
+
+	long int numpix = Gray -> header.image_size_bytes / BPP;
+	Gray -> pixelmap = malloc(sizeof(Pixel) * numpix);
+
+	if(Gray -> pixelmap == NULL) {
+		*a_error = "Unable to write image pixel data";
+		FreeBMP(Gray);
+		return NULL;
+	}
+
+	for(int idx = 0; idx < numpix; idx++) {
+		if(method == 'a') {
+			Gray -> pixelmap[idx] = _avg_Pixel(image -> pixelmap[idx]);
+		}
+		else if(method == 'l') {
+			Gray -> pixelmap[idx] = _lum_Pixel(image -> pixelmap[idx]);
+		}
+	}
+
+	return Gray;
+
 }
 int       WriteBMP(BMPImage* image, const char** a_error, FILE* fp) {
 	unsigned char* data = _pixelmap_to_data(image);
