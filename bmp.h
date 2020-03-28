@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "file.h"
+#include <pthread.h>
 
 static const size_t BMP_HEADER_SIZE = 54;
 static const size_t DIB_HEADER_SIZE = 40;
@@ -49,12 +50,42 @@ typedef struct {
 	BMPHeader header;
 	Pixel* pixelmap;
 } BMPImage;
-
+typedef struct {
+	Pixel* pixelmap;
+	size_t radius;
+	size_t numpix;
+	int center_x;
+	int center_y;
+} BinArg;		//binarization argument
 
 /*
  * Some basic files set up to read and write BMP Images. All other functions will be declared in future functions
  */
+Pixel* _get_Pixel_area(int x, int y, size_t r, BMPImage* image) {
+	int numpix = (2*r+1)*(2*r+1); //gets the number of pixels in a square around the central pixel
+	int idx = (x - (2*r+1)) + (image -> header.width_px * (y - (2*r+1)));
+	Pixel* ret = malloc(sizeof(Pixel) * numpix);
 
+	int xnew = 0;
+	int ynew = 0;
+
+	for(int i = 0; i < numpix; i++) {
+		if(xnew == (2*r +1)) {
+			xnew = 0;
+			ynew++;
+		}
+		ret[i] = image -> pixelmap[idx + i];
+		ret[i].x = xnew;
+		ret[i].y = ynew;
+		xnew++;
+	}
+	return ret;
+}
+int    _edge_case(int n, int min, int max) {
+	if(n < min)      return min;
+	else if(n > max) return max;
+	else             return n;
+}
 Pixel* _data_to_pixelmap(unsigned char* data, BMPHeader header) {
 	Pixel* pixelmap = malloc(sizeof(Pixel) * header.width_px * header.height_px);
 
@@ -76,6 +107,14 @@ Pixel* _data_to_pixelmap(unsigned char* data, BMPHeader header) {
 Pixel  _get_Pixel(int x, int y, Pixel* pixelmap, BMPHeader header) {
 	int idx = (x + header.width_px * y);			//calculate the position of the pixel
 	return pixelmap[idx];
+}
+void   _set_Pixel(int x, inty, unsigned char r, unsigned char g, unsigned char b, BMPImage* image) {
+	int idx = x + (image -> header.width_px * y);
+	image -> pixelmap[idx].r = r;
+	image -> pixelmap[idx].g = g;
+	image -> pixelmap[idx].b = b;
+
+	return;
 }
 Pixel  _avg_Pixel(Pixel pix) {
 	Pixel ret = pix;
@@ -111,6 +150,7 @@ unsigned char* _pixelmap_to_data(const BMPImage* image) {
 	}
 	return data;
 }
+
 void      FreeBMP(BMPImage* image) {
 	free(image -> pixelmap);
 	free(image);
@@ -282,6 +322,40 @@ BMPImage* GrayBMP  (const BMPImage* image, const char** a_error, char method) {
 
 	return Gray;
 
+}
+void* _binWorker(void* arg){}
+BMPImage* BinarizeBMP(const BMPImage* image, const char** a_error, int rad, int threads) {
+	BMPImage* Binarized = malloc(sizeof(BMPImage));
+
+	BinArg* args = malloc(sizeof(BinArg) * threads);
+	size_t numpix = image -> header.height_px * image -> header.width_px;
+	size_t numpix_thread = numpix / threads;
+
+	int x = rad;
+	int y = rad;
+
+	pthread_t* t = malloc(sizeof(pthread_t) * threads);
+
+	for(int idx = 0; idx + numpix_thread - 1 < numpix; idx += numpix_thread) {
+		int thread_idx = idx / numpix_thread;
+		args[thread_idx] = (BinArg) {
+			.pixelmap = _get_Pixel_area(x, y, rad, image);
+			.radius = rad;
+			.numpix = numpix_thread;
+			.center_x = x;
+			.center_y = y;
+		};
+
+		x += (2*rad + 1);
+		if(x + rad >= image -> header.width_px) {
+			x = rad;
+			y += (2 * rad + 1);
+		}
+
+	}
+
+
+	return Binarized;
 }
 int       WriteBMP(BMPImage* image, const char** a_error, FILE* fp) {
 	unsigned char* data = _pixelmap_to_data(image);
